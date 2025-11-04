@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>Privacy Policy – KODE X Institutional Trading AI</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; padding: 0; }
+    .wrap { max-width: 880px; margin: 0 auto; padding: 32px 20px; line-height: 1.6; }
+    h1 { font-size: 28px; margin: 0 0 8px; }
+    h2 { font-size: 18px; margin: 28px 0 8px; }
+    .card { border: 1px solid rgba(140,140,140,.25); border-radius: 12px; padding: 16px 20px; margin: 12px 0; }
+    code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .muted { opacity: .75; font-size: 14px; }
+    a { color: inherit; text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <h1>Privacy Policy</h1>
+    <p class="muted">Last updated: <span class="mono" id="updated">2025-11-04</span></p>
+
+    <div class="card">
+      <p><strong>KODE X – Institutional Trading AI</strong> connects to a private backend API (FastAPI on Railway) and to OpenAI’s API to process user prompts and generate responses.</p>
+    </div>
+
+    <h2>1. Data We Process</h2>
+    <ul>
+      <li>Text prompts, parameters (e.g., <span class="mono">pair</span>, <span class="mono">timeframe</span>, risk settings) that you send to our API endpoints (<span class="mono">/ai</span>, <span class="mono">/analyze</span>).</li>
+      <li>Technical metadata for reliability: timestamps, latency, and minimal logs for error diagnostics. No persistent personal identifiers are stored intentionally.</li>
+    </ul>
+
+    <h2>2. Purpose of Processing</h2>
+    <ul>
+      <li>To generate model outputs (analysis, recommendations, summaries) via OpenAI.</li>
+      <li>To improve reliability and troubleshoot errors.</li>
+    </ul>
+
+    <h2>3. Retention</h2>
+    <p>We do not intentionally store prompts or outputs long-term on our servers. Transient logs may exist for short periods for reliability and security.</p>
+
+    <h2>4. Third Parties</h2>
+    <p>We use <a href="https://openai.com/policies" target="_blank" rel="noopener">OpenAI</a> to process text and generate responses. Your requests may be transmitted to OpenAI’s API under our API key and subject to OpenAI’s policies.</p>
+
+    <h2>5. Security</h2>
+    <ul>
+      <li>Transport encryption (HTTPS) is enforced.</li>
+      <li>Service access requires an API key header (<span class="mono">X-API-KEY</span>) for protected routes.</li>
+    </ul>
+
+    <h2>6. Your Choices</h2>
+    <ul>
+      <li>Avoid sharing personal or sensitive data in prompts.</li>
+      <li>Contact us to request deletion of specific diagnostic logs if any exist.</li>
+    </ul>
+
+    <h2>7. Contact</h2>
+    <p>Email: <a href="mailto:xtradingai@gmail.com">xtradingai@gmail.com</a></p>
+
+    <p class="muted">This page is provided for compliance with public GPT actions. It may be updated over time.</p>
+  </main>
+</body>
+</html>

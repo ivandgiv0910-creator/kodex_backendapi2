@@ -6,6 +6,14 @@ from loguru import logger
 import os, time, math
 import httpx
 from typing import List, Optional
+from fastapi.responses 
+import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse
+
+@app.get("/privacy", response_class=HTMLResponse, include_in_schema=False)
+def privacy_page():
+    path = "app/static/privacy.html"
+    return FileResponse(path, media_type="text/html")
 
 
 # =========================
