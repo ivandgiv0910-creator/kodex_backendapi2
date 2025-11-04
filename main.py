@@ -1,93 +1,64 @@
-from fastapi import FastAPI, HTTPException
-import requests, pandas as pd, pandas_ta as ta
-from datetime import datetime, timezone
-from typing import Optional
+# main.py
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, RedirectResponse
 
-app = FastAPI(title="Kode X Market API", version="2.1")
+from app.config import settings
+from app.routers.market import router as market_router
+from app.routers.ai_adapter import router as ai_router
 
-def fetch_ohlcv_binance(symbol: str, timeframe: str, limit: int = 300):
-    url = "https://api.binance.com/api/v3/klines"
-    params = {"symbol": symbol.upper(), "interval": timeframe, "limit": min(limit, 1000)}
-    r = requests.get(url, params=params, timeout=10)
-    if r.status_code != 200:
-        raise HTTPException(502, f"Binance error: {r.text}")
-    data = r.json()
-    df = pd.DataFrame(data, columns=[
-        "open_time","open","high","low","close","volume","close_time",
-        "qav","num_trades","taker_base","taker_quote","ignore"
-    ])
-    df["time"] = pd.to_datetime(df["close_time"], unit="ms", utc=True)
-    for c in ["open","high","low","close","volume"]:
-        df[c] = pd.to_numeric(df[c], errors="coerce")
-    df = df[["time","open","high","low","close","volume"]]
-    return df
+APP_TITLE = "Kode X Backend API"
+APP_VERSION = "2.1"
 
-def style_from_tf(tf: str):
-    if tf in ["1m","5m","15m"]:
-        return "scalping"
-    if tf in ["30m","1h"]:
-        return "intraday"
-    if tf in ["4h","1d"]:
-        return "swing"
-    return "positional"
+app = FastAPI(title=APP_TITLE, version=APP_VERSION)
 
-def indicator_presets(style: str):
-    if style == "scalping":
-        return dict(ema_fast=9, ema_slow=21, bb_len=20, bb_dev=2.2, macd=(8,21,5), rsi=7)
-    if style == "intraday":
-        return dict(ema_fast=20, ema_slow=50, bb_len=20, bb_dev=2.0, macd=(12,26,9), rsi=14)
-    if style == "swing":
-        return dict(ema_fast=50, ema_slow=200, bb_len=20, bb_dev=2.0, macd=(12,26,9), rsi=14)
-    return dict(ema_fast=100, ema_slow=200, bb_len=20, bb_dev=2.0, macd=(12,26,9), rsi=14)
+# --- CORS ---
+origins = (
+    ["*"]
+    if settings.cors_allow_origins == "*"
+    else [o.strip() for o in settings.cors_allow_origins.split(",") if o.strip()]
+)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-def compute_indicators(df: pd.DataFrame, style: str):
-    p = indicator_presets(style)
-    df["ema_fast"] = ta.ema(df["close"], length=p["ema_fast"])
-    df["ema_slow"] = ta.ema(df["close"], length=p["ema_slow"])
-    bb = ta.bbands(df["close"], length=p["bb_len"], std=p["bb_dev"])
-    macd = ta.macd(df["close"], fast=p["macd"][0], slow=p["macd"][1], signal=p["macd"][2])
-    df["rsi"] = ta.rsi(df["close"], length=p["rsi"])
-    df["atr"] = ta.atr(df["high"], df["low"], df["close"], length=14)
-    last = df.iloc[-1]
-    return {
-        "ema_fast": float(last["ema_fast"]),
-        "ema_slow": float(last["ema_slow"]),
-        "bb_middle": float(bb.iloc[-1,1]),
-        "bb_upper": float(bb.iloc[-1,0]),
-        "bb_lower": float(bb.iloc[-1,2]),
-        "macd": {
-            "line": float(macd.iloc[-1,0]),
-            "signal": float(macd.iloc[-1,1]),
-            "hist": float(macd.iloc[-1,2])
-        },
-        "rsi": float(last["rsi"]),
-        "atr": float(last["atr"])
-    }
+# --- Routers ---
+app.include_router(market_router, prefix="/market", tags=["market"])
+app.include_router(ai_router, prefix="/ai", tags=["ai"])
 
-@app.get("/market/snapshot")
-def market_snapshot(symbol: str, timeframe: str = "15m", limit: int = 300):
-    df = fetch_ohlcv_binance(symbol, timeframe, limit)
-    price = float(df["close"].iloc[-1])
-    return {
-        "symbol": symbol.upper(),
-        "timeframe": timeframe,
-        "provider_time": df["time"].iloc[-1].isoformat(),
-        "price": price,
-    }
-
-@app.post("/market/indicators")
-def market_indicators(symbol: str, timeframe: str = "15m", style: Optional[str] = None, limit: int = 300):
-    df = fetch_ohlcv_binance(symbol, timeframe, limit)
-    style = style or style_from_tf(timeframe)
-    indicators = compute_indicators(df, style)
-    return {
-        "symbol": symbol.upper(),
-        "timeframe": timeframe,
-        "style": style,
-        "price": float(df["close"].iloc[-1]),
-        "indicators": indicators
-    }
-
-@app.get("/")
+# --- Basic health & convenience routes ---
+@app.get("/", include_in_schema=False)
 def root():
-    return {"status": "ok", "time": datetime.now(timezone.utc).isoformat()}
+    return RedirectResponse(url="/docs")
+
+@app.get("/healthz", tags=["system"])
+def healthz():
+    return {"ok": True, "app": APP_TITLE, "version": APP_VERSION, "env": settings.app_env}
+
+@app.get("/version", tags=["system"])
+def version():
+    return {"version": APP_VERSION}
+
+@app.get("/config", tags=["system"], include_in_schema=False)
+def config_preview():
+    # Hanya untuk debug lokal. Jangan expose di production jika sensitif.
+    return JSONResponse(
+        {
+            "env": settings.app_env,
+            "port": settings.app_port,
+            "cors_allow_origins": settings.cors_allow_origins,
+            "http": {
+                "timeout_seconds": settings.http_timeout_seconds,
+                "connect_timeout": settings.http_connect_timeout_seconds,
+                "read_timeout": settings.http_read_timeout_seconds,
+                "write_timeout": settings.http_write_timeout_seconds,
+                "max_retries": settings.http_max_retries,
+                "http2_enabled": getattr(settings, "http2_enabled", False),
+            },
+            "binance_hosts_count": len(settings.binance_hosts),
+        }
+    )
