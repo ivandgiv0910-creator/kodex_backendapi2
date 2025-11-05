@@ -1,28 +1,40 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+import os
 
-app = FastAPI(
-    title="Kode X Backend API v2.1",
-    description="Backend API untuk KODE X – Institutional Trading AI",
-    version="1.0.0",
+# Routers
+from app.routers.signals import router as signals_router
+from app.routers.telegram_webhook import router as telegram_router
+# (opsional) kalau kamu sudah buat subs:
+try:
+    from app.routers.subscriptions import router as subs_router
+    HAS_SUBS = True
+except Exception:
+    HAS_SUBS = False
+
+app = FastAPI(title="KodeX Backend", version="1.0.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-@app.get("/health")
-def health_check():
-    return {"status": "healthy"}
-
-@app.get("/version")
-def version_info():
-    return {"version": "1.0.0", "model_default": "gpt-4o-mini"}
+# ✅ MOUNT ROUTERS
+app.include_router(signals_router)
+app.include_router(telegram_router)
+if HAS_SUBS:
+    app.include_router(subs_router)
 
 @app.get("/")
 def root():
-    return {"status": "ok", "service": "kodex_backendapi2"}
+    return {
+        "app": "KodeX Backend",
+        "env": os.environ.get("ENV", "production"),
+        "telegram_default_push": os.environ.get("PUSH_TELEGRAM_DEFAULT", "false").lower() in ("1","true","yes","on")
+    }
 
-@app.get("/privacy", response_class=HTMLResponse, include_in_schema=False)
-def privacy_page():
-    return FileResponse("app/static/privacy.html", media_type="text/html")
-
-@app.exception_handler(404)
-async def not_found_handler(request: Request, exc):
-    return JSONResponse(status_code=404, content={"detail": "Not Found"})
+@app.get("/health")
+def health():
+    return {"ok": True}
