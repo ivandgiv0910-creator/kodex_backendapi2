@@ -8,8 +8,9 @@ import asyncio
 
 router = APIRouter(prefix="/marketdata", tags=["marketdata"])
 
-# --- Konfigurasi dasar ---
-BINANCE_BASE = "https://api.binance.com"
+# --- Konfigurasi dasar (MIRROR untuk menghindari blokir regional) ---
+# Ganti mirror ini kalau perlu: api1 / api2 / api3 / api4
+BINANCE_BASE = "https://api4.binance.com"
 BINANCE_TIMEOUT = 8.0   # detik
 MAX_LIMIT = 1000
 CACHE_TTL = 10.0        # detik
@@ -20,6 +21,7 @@ SUPPORTED_TF = {
     "1d": "1d",
 }
 
+# simple in-memory cache: key -> (expires_at, data)
 _cache: Dict[str, tuple[float, Any]] = {}
 
 def _cache_key(symbol: str, timeframe: str, limit: int, since: Optional[int]) -> str:
@@ -87,6 +89,10 @@ async def _binance_klines(
     for attempt in range(3):
         try:
             r = await client.get(url, params=params, timeout=BINANCE_TIMEOUT)
+            # handle regional blocks / rate limits
+            if r.status_code == 451:
+                # regional restriction — bubble up a clear error
+                raise HTTPException(status_code=451, detail=f"Upstream regional restriction from Binance for symbol {symbol} (HTTP 451).")
             if r.status_code == 429:
                 await asyncio.sleep(0.5 * (attempt + 1))
                 continue
@@ -97,10 +103,18 @@ async def _binance_klines(
             if not isinstance(data, list):
                 raise HTTPException(status_code=502, detail="Unexpected response from Binance")
             return _normalize_klines(data)
+        except HTTPException:
+            # re-raise HTTPException produced above
+            raise
         except (httpx.HTTPError, httpx.ConnectError, httpx.ReadTimeout) as e:
             last_err = e
             await asyncio.sleep(0.35 * (attempt + 1))
+    # all retries failed
     raise HTTPException(status_code=502, detail=f"Upstream error from Binance: {repr(last_err)}")
+
+# --------------------------
+#         ENDPOINTS
+# --------------------------
 
 @router.get("")
 async def get_marketdata_query(
@@ -109,6 +123,10 @@ async def get_marketdata_query(
     limit: Optional[int] = Query(200, description=f"Jumlah candle, max {MAX_LIMIT}"),
     since: Optional[int] = Query(None, description="Start time (ms since epoch) opsional"),
 ) -> Dict[str, Any]:
+    """
+    Ambil multi-pair sekaligus:
+    /marketdata?symbols=BTCUSDT,ETHUSDT&timeframe=1h&limit=200
+    """
     tf = _validate_timeframe(timeframe)
     lim = _clamp_limit(limit)
     syms = [s.strip().upper() for s in symbols.split(",") if s.strip()]
@@ -116,6 +134,7 @@ async def get_marketdata_query(
         raise HTTPException(status_code=400, detail="symbols cannot be empty")
 
     results: Dict[str, Any] = {"timeframe": tf, "limit": lim, "since": since, "data": {}}
+
     async with httpx.AsyncClient() as client:
         for sym in syms:
             key = _cache_key(sym, tf, lim, since)
@@ -126,7 +145,9 @@ async def get_marketdata_query(
             kl = await _binance_klines(client, sym, tf, lim, since)
             _set_cache(key, kl)
             results["data"][sym] = kl
+
     return results
+
 
 @router.get("/{symbol}/{timeframe}")
 async def get_marketdata_symbol(
@@ -135,6 +156,10 @@ async def get_marketdata_symbol(
     limit: Optional[int] = Query(200, description=f"Jumlah candle, max {MAX_LIMIT}"),
     since: Optional[int] = Query(None, description="Start time (ms since epoch) opsional")
 ) -> Dict[str, Any]:
+    """
+    Ambil single pair:
+    /marketdata/BTCUSDT/1h?limit=300
+    """
     tf = _validate_timeframe(timeframe)
     lim = _clamp_limit(limit)
     key = _cache_key(symbol, tf, lim, since)
