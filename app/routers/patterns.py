@@ -1,10 +1,9 @@
+from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Query
+from typing import List, Dict, Any, Optional   # ⬅️ WAJIB ADA
+import httpx, asyncio, math, statistics, time
+
 router = APIRouter(prefix="/patterns", tags=["patterns"])
-
-@router.get("/{symbol}/{timeframe}")
-async def analyze_patterns(symbol: str, timeframe: str, limit: int = Query(300)):
-    return {"ok": True}  # (contoh; nanti ganti dengan versi lengkapmu)
-
 
 # --- ganti fungsi lama _fetch_klines di patterns.py dengan ini ---
 
