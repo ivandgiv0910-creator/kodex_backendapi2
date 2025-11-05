@@ -1,82 +1,78 @@
-import time, httpx, logging
-from typing import Dict, Any
+import asyncio
+from typing import Any, Dict, List, Optional
+import httpx
 from app.config import settings
 
-logger = logging.getLogger("binance_client")
-logging.basicConfig(level=logging.INFO)
-
-def _http2():
-    # aman kalau field belum ada
-    return getattr(settings, "http2_enabled", False)
+DEFAULT_TIMEOUT = httpx.Timeout(10.0, read=15.0)
 
 class BinanceHTTP:
-    def __init__(self):
-        self.hosts = list(settings.binance_hosts)
-        if not self.hosts:
-            raise RuntimeError("BINANCE_HOSTS tidak terdefinisi di .env")
+    def __init__(self, hosts: Optional[List[str]] = None):
+        self.hosts = hosts or [
+            "https://api.binance.com",
+            "https://api1.binance.com",
+            "https://api2.binance.com",
+            "https://api3.binance.com",
+            "https://data-api.binance.vision",
+        ]
+        self._idx = 0
+        self._client = httpx.AsyncClient(timeout=DEFAULT_TIMEOUT, http2=True)
 
-        self.timeout = httpx.Timeout(
-            connect=settings.http_connect_timeout_seconds,
-            read=settings.http_read_timeout_seconds,
-            write=settings.http_write_timeout_seconds,
-            pool=settings.http_timeout_seconds,
-        )
-        self.max_retries = max(0, settings.http_max_retries)
+    def _current_host(self) -> str:
+        return self.hosts[self._idx % len(self.hosts)]
 
-    async def _get(self, client: httpx.AsyncClient, url: str) -> httpx.Response:
-        last_exc = None
-        for attempt in range(self.max_retries + 1):
+    def _rotate(self):
+        self._idx = (self._idx + 1) % len(self.hosts)
+
+    async def get(self, path: str, params: Optional[Dict[str, Any]] = None) -> Any:
+        """
+        GET dengan retry & rotate host. Path harus diawali '/'.
+        """
+        if not path.startswith("/"):
+            path = "/" + path
+
+        last_err = None
+        for _ in range(len(self.hosts)):
+            base = self._current_host()
+            url = base + path
             try:
-                return await client.get(url)
+                resp = await self._client.get(url, params=params)
+                if resp.status_code == 200:
+                    return resp.json()
+                # kalau 404 di host data-api, coba host lain
+                last_err = Exception(f"HTTP {resp.status_code} on {url}: {resp.text[:160]}")
             except Exception as e:
-                last_exc = e
-                logger.warning(f"GET {url} gagal (attempt {attempt+1}/{self.max_retries+1}): {e}")
-        if last_exc:
-            raise last_exc
+                last_err = e
+            # rotate dan coba lagi
+            self._rotate()
+        raise last_err or Exception("All Binance hosts failed")
 
-    async def ping_any(self) -> Dict[str, Any]:
-        try:
-            async with httpx.AsyncClient(timeout=self.timeout, http2=_http2()) as client:
-                for host in self.hosts:
-                    url = f"{host}/api/v3/ping"
-                    start = time.perf_counter()
-                    try:
-                        resp = await self._get(client, url)
-                        latency_ms = round((time.perf_counter() - start) * 1000, 2)
-                        if resp.status_code == 200:
-                            return {"ok": True, "host": host, "status_code": resp.status_code,
-                                    "latency_ms": latency_ms, "msg": "pong"}
-                    except Exception as e:
-                        logger.error(f"[FAIL] {host} error={e}")
-        except Exception as e:
-            return {"ok": False, "msg": f"client_error: {e.__class__.__name__}: {e}"}
-        return {"ok": False, "msg": "all hosts timeout or failed", "hosts_tried": self.hosts}
+    async def close(self):
+        await self._client.aclose()
 
-    async def simple_get(self, path: str) -> Dict[str, Any]:
-        async with httpx.AsyncClient(timeout=self.timeout, http2=_http2()) as client:
-            for host in self.hosts:
-                try:
-                    resp = await client.get(f"{host}{path}")
-                    if resp.status_code == 200:
-                        return {"ok": True, "data": resp.json()}
-                except Exception as e:
-                    logger.warning(f"{host}{path} failed: {e}")
-        return {"ok": False, "msg": f"failed to fetch {path}"}
 
-    async def get_klines(self, symbol: str, interval: str = "1h", limit: int = 100) -> Dict[str, Any]:
-        path = f"/api/v3/klines?symbol={symbol.upper()}&interval={interval}&limit={limit}"
-        return await self.simple_get(path)
+# Instance global yang dipakai modul lain
+binance_http = BinanceHTTP(getattr(settings, "binance_hosts", None))
 
-    async def get_depth(self, symbol: str, limit: int = 50) -> Dict[str, Any]:
-        path = f"/api/v3/depth?symbol={symbol.upper()}&limit={limit}"
-        return await self.simple_get(path)
 
-    async def get_book_ticker(self, symbol: str) -> Dict[str, Any]:
-        path = f"/api/v3/ticker/bookTicker?symbol={symbol.upper()}"
-        return await self.simple_get(path)
+# Convenience helpers
+async def get_klines(symbol: str, interval: str, limit: int = 200):
+    """
+    Return: list klines seperti standar Binance:
+    [
+      [ openTime, open, high, low, close, volume, closeTime, ... ],
+      ...
+    ]
+    """
+    params = {
+        "symbol": symbol.upper(),
+        "interval": interval,
+        "limit": min(max(int(limit), 1), 1000),
+    }
+    data = await binance_http.get("/api/v3/klines", params=params)
+    return data
 
-    async def get_avg_price(self, symbol: str) -> Dict[str, Any]:
-        path = f"/api/v3/avgPrice?symbol={symbol.upper()}"
-        return await self.simple_get(path)
 
-binance_http = BinanceHTTP()
+async def get_price(symbol: str) -> float:
+    data = await binance_http.get("/api/v3/ticker/price", params={"symbol": symbol.upper()})
+    # response: {"symbol":"BTCUSDT","price":"103456.12000000"}
+    return float(data["price"])

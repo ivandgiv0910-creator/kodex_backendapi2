@@ -20,6 +20,20 @@ PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "https://kodex-backendapi2.up.rai
 BINANCE_API_KEY = os.getenv("BINANCE_API_KEY", "")
 BINANCE_API_SECRET = os.getenv("BINANCE_API_SECRET", "")
 
+# Comma-separated list; fallback ke host resmi jika kosong
+_BINANCE_HOSTS_ENV = os.getenv("BINANCE_HOSTS", "")
+if _BINANCE_HOSTS_ENV.strip():
+    BINANCE_HOSTS = [h.strip() for h in _BINANCE_HOSTS_ENV.split(",") if h.strip()]
+else:
+    BINANCE_HOSTS = [
+        "https://api.binance.com",
+        "https://api1.binance.com",
+        "https://api2.binance.com",
+        "https://api3.binance.com",
+        # endpoint data-only (sering stabil)
+        "https://data-api.binance.vision",
+    ]
+
 # ========================
 # Database
 # ========================
@@ -29,7 +43,6 @@ DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./kodex_registry.db")
 # System Mode
 # ========================
 DEBUG = os.getenv("DEBUG", "false").lower() == "true"
-
 
 # ========================
 # Compatibility Layer
@@ -43,4 +56,6 @@ settings = SimpleNamespace(
     BINANCE_API_SECRET=BINANCE_API_SECRET,
     DATABASE_URL=DATABASE_URL,
     DEBUG=DEBUG,
+    # penting: properti yang dicari binance_client.py
+    binance_hosts=BINANCE_HOSTS,
 )
