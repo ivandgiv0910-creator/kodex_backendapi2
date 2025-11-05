@@ -1,3 +1,11 @@
+from fastapi import APIRouter, HTTPException, Query
+router = APIRouter(prefix="/patterns", tags=["patterns"])
+
+@router.get("/{symbol}/{timeframe}")
+async def analyze_patterns(symbol: str, timeframe: str, limit: int = Query(300)):
+    return {"ok": True}  # (contoh; nanti ganti dengan versi lengkapmu)
+
+
 # --- ganti fungsi lama _fetch_klines di patterns.py dengan ini ---
 
 async def _fetch_klines(symbol: str, tf: str, limit: int) -> List[Dict[str, Any]]:
