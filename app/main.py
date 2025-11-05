@@ -1,29 +1,63 @@
-# app/main.py
+import asyncio
 from fastapi import FastAPI
 
-app = FastAPI(title="Kode X Backend API v2.1")
+# ==========================
+# Import router yang SUDAH ADA
+# ==========================
+from app.routers import (
+    ai_adapter,
+    market,
+    marketdata,
+    patterns,
+    signals
+)
 
-# Root check
+# ==========================
+# Import router & worker baru (Telegram)
+# ==========================
+from app.routers import telegram_webhook, telegram_api
+from app.services.telegram.worker import volume_loop
+
+
+# ==========================
+# Inisialisasi FastAPI
+# ==========================
+app = FastAPI(title="Kodex BackendAPI v2")
+
+
+# ==========================
+# Include semua router lama (TETAP)
+# ==========================
+app.include_router(ai_adapter.router)
+app.include_router(market.router)
+app.include_router(marketdata.router)
+app.include_router(patterns.router)
+app.include_router(signals.router)
+
+# ==========================
+# Include router Telegram baru
+# ==========================
+app.include_router(telegram_webhook.router)
+app.include_router(telegram_api.router)
+
+
+# ==========================
+# Event startup — jalankan background worker volume spike
+# ==========================
+@app.on_event("startup")
+async def _startup():
+    # Worker volume loop berjalan di background tanpa mengganggu request utama
+    asyncio.create_task(volume_loop())
+    print("[startup] Kodex BackendAPI v2 aktif — Telegram worker dimulai ✅")
+
+
+# ==========================
+# Root endpoint (health check)
+# ==========================
 @app.get("/")
 def root():
-    return {"ok": True, "service": "kodex_backendapi2", "version": "2.1"}
-
-# === Include routers dengan import aman (tanpa ganggu modul lain) ===
-# ... import & init FastAPI yang sudah ada
-
-def _safe_include(path: str, attr: str):
-    try:
-        mod = __import__(path, fromlist=[attr])
-        app.include_router(getattr(mod, attr))
-    except Exception as e:
-        print(f"[WARN] Failed to include {path}: {e}")
-
-# routers lain yang sudah ada
-_safe_include("app.routers.marketdata", "router")
-_safe_include("app.routers.signals", "router")
-_safe_include("app.routers.telegram_webhook", "router")
-_safe_include("app.routers.market", "router")
-_safe_include("app.routers.ai_adapter", "router")
-
-# ✅ tambahkan baris ini
-_safe_include("app.routers.patterns", "router")
+    return {
+        "ok": True,
+        "service": "kodex_backendapi2",
+        "message": "Service aktif dan siap menerima webhook Telegram 🚀"
+    }
