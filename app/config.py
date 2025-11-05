@@ -1,27 +1,30 @@
 import os
-from pydantic import BaseModel
 from dotenv import load_dotenv
 
+# Load dari .env file
 load_dotenv()
 
-class Settings(BaseModel):
-    app_env: str = os.getenv("APP_ENV", "local")
-    app_port: int = int(os.getenv("APP_PORT", "8000"))
+# ========================
+# Telegram Bot
+# ========================
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_WEBHOOK_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET", "defaultsecret123")
 
-    cors_allow_origins: str = os.getenv("CORS_ALLOW_ORIGINS", "*")
+# Base URL backend (untuk webhook public)
+PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "https://kodex-backendapi2.up.railway.app")
 
-    http_timeout_seconds: float = float(os.getenv("HTTP_TIMEOUT_SECONDS", "10"))
-    http_connect_timeout_seconds: float = float(os.getenv("HTTP_CONNECT_TIMEOUT_SECONDS", "5"))
-    http_read_timeout_seconds: float = float(os.getenv("HTTP_READ_TIMEOUT_SECONDS", "10"))
-    http_write_timeout_seconds: float = float(os.getenv("HTTP_WRITE_TIMEOUT_SECONDS", "10"))
-    http_max_retries: int = int(os.getenv("HTTP_MAX_RETRIES", "2"))
+# ========================
+# Binance & Market
+# ========================
+BINANCE_API_KEY = os.getenv("BINANCE_API_KEY", "")
+BINANCE_API_SECRET = os.getenv("BINANCE_API_SECRET", "")
 
-    # ✅ perbaikan penting: dukungan flag HTTP/2
-    http2_enabled: bool = os.getenv("HTTP2_ENABLED", "false").lower() == "true"
+# ========================
+# Database
+# ========================
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./kodex_registry.db")
 
-    # daftar host Binance
-    binance_hosts: list[str] = tuple(
-        h.strip() for h in os.getenv("BINANCE_HOSTS", "").split(",") if h.strip()
-    )
-
-settings = Settings()
+# ========================
+# System Mode
+# ========================
+DEBUG = os.getenv("DEBUG", "false").lower() == "true"
