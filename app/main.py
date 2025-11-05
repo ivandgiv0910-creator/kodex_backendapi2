@@ -31,3 +31,4 @@ _safe_include("app.routers.signals", "router")            # Endpoint /signals
 _safe_include("app.routers.telegram_webhook", "router")   # Webhook Telegram
 _safe_include("app.routers.market", "router")             # (kalau ada)
 _safe_include("app.routers.ai_adapter", "router")         # (kalau ada)
+_safe_include("app.routers.patterns", "router")
