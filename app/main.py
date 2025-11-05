@@ -1,46 +1,33 @@
+# app/main.py
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-import os
 
-# Routers
-from app.routers.signals import router as signals_router
-from app.routers.telegram_webhook import router as telegram_router
-from fastapi import FastAPI
-from marketdata import router as marketdata_router
-
-# (opsional) kalau kamu sudah buat subs:
-try:
-    from app.routers.subscriptions import router as subs_router
-    HAS_SUBS = True
-except Exception:
-    HAS_SUBS = False
-
-app = FastAPI(title="KodeX Backend", version="1.0.0")
 app = FastAPI(title="Kode X Backend API v2.1")
 
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# ✅ MOUNT ROUTERS
-app.include_router(signals_router)
-app.include_router(telegram_router)
-app.include_router(marketdata_router) 
-if HAS_SUBS:
-    app.include_router(subs_router)
-
+# Root check
 @app.get("/")
 def root():
-    return {
-        "app": "KodeX Backend",
-        "env": os.environ.get("ENV", "production"),
-        "telegram_default_push": os.environ.get("PUSH_TELEGRAM_DEFAULT", "false").lower() in ("1","true","yes","on")
-    }
+    return {"ok": True, "service": "kodex_backendapi2", "version": "2.1"}
 
-@app.get("/health")
-def health():
-    return {"ok": True}
+# === Include routers dengan import aman (tanpa ganggu modul lain) ===
+def _safe_include(import_path: str, attr: str = "router"):
+    """
+    Import router secara aman.
+    Kalau modul belum ada / sementara bermasalah, app tetap jalan.
+    """
+    try:
+        mod = __import__(import_path, fromlist=[attr])
+        router = getattr(mod, attr, None)
+        if router:
+            app.include_router(router)
+            return True
+    except Exception:
+        # Biar silent: kita tidak ingin produksi crash hanya karena 1 router gagal import
+        return False
+    return False
+
+# Router yang sudah ada di projectmu:
+_safe_include("app.routers.marketdata", "router")         # (baru) Market Data
+_safe_include("app.routers.signals", "router")            # Endpoint /signals
+_safe_include("app.routers.telegram_webhook", "router")   # Webhook Telegram
+_safe_include("app.routers.market", "router")             # (kalau ada)
+_safe_include("app.routers.ai_adapter", "router")         # (kalau ada)
