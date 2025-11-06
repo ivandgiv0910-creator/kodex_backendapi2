@@ -10,7 +10,9 @@ from app.routers import (
     marketdata,
     patterns,
     signals
-    from routes_alias import alias as alias_router
+    from app.routers.routes_alias import alias as alias_router
+
+
 
 
 )
