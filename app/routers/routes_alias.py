@@ -1,33 +1,31 @@
-# routes_alias.py
-from fastapi import APIRouter, Depends, HTTPException, Request
+# app/routers/routes_alias.py
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from typing import Optional
+import time
 
 alias = APIRouter()
 
 @alias.get("/jit_plugin/getPatternsSingle")
-async def alias_get_patterns_single(symbol: str, timeframe: str, limit: Optional[int] = 300, request: Request = None):
+async def alias_get_patterns_single(
+    symbol: str,
+    timeframe: str,
+    limit: Optional[int] = 300,
+    request: Request = None
+):
     """
-    Alias untuk menjaga kompatibilitas GPT Action:
-    - Menerima query ?symbol=BTCUSDT&timeframe=1h&limit=300
-    - Meneruskan ke handler asli yang ada di /patterns/{symbol}/{timeframe}
+    Alias untuk kompatibilitas GPT Actions.
+    Query: ?symbol=BTCUSDT&timeframe=1h&limit=300
+    TODO: sambungkan ke fungsi core analisa kamu kalau sudah siap.
     """
-    # Jika kamu ingin meneruskan ke handler internal, kamu bisa import fungsi handler asli dan panggil langsung.
-    # Contoh (sesuaikan nama modul/fungsinya):
-    #
-    #   from routes_patterns import get_patterns_single_core
-    #   return await get_patterns_single_core(symbol, timeframe, limit)
-    #
-    # Jika handler asli ada di app instance yang sama sebagai route lain, opsi paling aman adalah
-    # duplikasi pemanggilan fungsi core. Sementara, berikut stub aman yang tidak merusak layanan lain.
-
-    # --- START: ganti blok di bawah ini dengan call ke logic asli kamu ---
-    # Stub respons minimal (agar connector GPT tidak error saat alias diaktifkan)
-    import time
+    # --- STUB aman: ganti dengan call ke logic asli kamu bila ada ---
+    # from app.routers.patterns import get_patterns_single_core
+    # return await get_patterns_single_core(symbol, timeframe, int(limit or 300))
+    # ----------------------------------------------------------------
     return JSONResponse({
         "symbol": symbol.upper(),
         "timeframe": timeframe,
-        "bars": limit or 300,
+        "bars": int(limit or 300),
         "trend": "sideway",
         "momentum": "moderate",
         "atr14": 0.0,
@@ -40,4 +38,3 @@ async def alias_get_patterns_single(symbol: str, timeframe: str, limit: Optional
         },
         "generated_at": int(time.time() * 1000)
     })
-    # --- END STUB ---
