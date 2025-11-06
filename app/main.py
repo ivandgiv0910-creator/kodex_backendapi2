@@ -10,6 +10,9 @@ from app.routers import (
     marketdata,
     patterns,
     signals
+    from routes_alias import alias as alias_router
+
+
 )
 
 # ==========================
@@ -33,6 +36,7 @@ app.include_router(market.router)
 app.include_router(marketdata.router)
 app.include_router(patterns.router)
 app.include_router(signals.router)
+app.include_router(alias_router, prefix="")
 
 # ==========================
 # Include router Telegram baru
